@@ -1,25 +1,132 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "Cazzo"
+author: "LeTwist"
+date: "11/6/2016"
+output: html_document
 ---
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 
-## Loading and preprocessing the data
+## R Markdown
+Load data set
+```{r}
+activity <- read.csv("activity.csv")
+```
 
+Activate graphing libraries
+```{r}
+library(lattice)
+library(ggplot2)
+library(plyr)
+library(dplyr)
+library(lubridate)
+library(knitr)
+library(markdown)
+```
 
+Look at variables
+```{r}
+head(activity)
+```
 
-## What is mean total number of steps taken per day?
+Transform variables to factors
+```{r}
+activity <- within(activity, {dateFAC = as.factor(date)})
+activity <- within(activity,{intervalFAC = as.factor(interval)})
+```
 
+Make sure that the data set does not include NA values
+```{r}
+actComp <- activity[complete.cases(activity),]
+```
 
+View NA-less data set
+```{r}
+head(actComp)
+```
 
-## What is the average daily activity pattern?
+Make a histogram of the total number of steps taken each day
+```{r}
+totals <- aggregate(steps ~ dateFAC, actComp, sum)
+plot1 <- histogram(dateFAC~steps,data = totals)
+```
 
+View the histogram of total steps by day
+```{r}
+plot1
+```
 
+Find the mean and median number of steps taken each day
+```{r}
+means <- aggregate(steps ~ dateFAC, actComp, mean)
+medians <- aggregate(steps~dateFAC, actComp, median)
+```
 
-## Imputing missing values
+View the mean data
+```{r}
+head(means)
+```
+View the median data
+```{r}
+head(medians)
+```
 
+Time series plot of the average number of steps taken
+```{r}
+series <- aggregate(steps~interval,actComp,mean)
+plot2 <- plot(series$interval,series$steps, type = "l")
+```
 
+The 5-minute interval that, on average, contains the maximum number of steps
+```{r}
+dim(series)
+```
 
-## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+max_steps <- max(series$steps)
+        for(i in 1:288){
+        if (series$steps[i]==max_steps)
+                intervalMax <- series$interval[i]
+        }
+intervalMax
+```
+
+Code to describe and show a strategy for imputing missing data
+```{r}
+missing <- is.na(activity$steps)
+table(missing)
+
+fill.value <- function(steps, interval) {
+    filled <- NA
+    if (!is.na(steps)) 
+        filled <- c(steps) else filled <- (series[series$interval == interval, "steps"])
+    return(filled)
+}
+filled.data <- activity
+filled.data$steps <- mapply(fill.value, filled.data$steps, filled.data$interval)
+
+head(filled.data)
+```
+Histogram of the total number of steps taken each day after missing values are imputed
+```{r}
+imputedTotals <- aggregate(steps ~ dateFAC, filled.data, sum)
+histogram(dateFAC~steps,data = totals)
+```
+
+Panel plot comparing the average number of steps taken per 5-minute interval across weekdays and weekends
+```{r}
+weekday.or.weekend <- function(dateFAC) {
+    day <- weekdays(dateFAC)
+    if (day %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")) 
+        return("weekday") else if (day %in% c("Saturday", "Sunday")) 
+        return("weekend") else stop("invalid date")
+}
+filled.data$dateFAC <- as.Date(filled.data$dateFAC)
+filled.data$day <- sapply(filled.data$dateFAC, FUN = weekday.or.weekend)
+
+averages <- aggregate(steps ~ interval + day, data = filled.data, mean)
+ggplot(averages, aes(interval, steps)) + geom_line() + facet_grid(day ~ .) + 
+    xlab("5-minute interval") + ylab("Number of steps")
+```
